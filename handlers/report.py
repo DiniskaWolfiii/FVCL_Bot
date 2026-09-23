@@ -9,15 +9,15 @@ from telegram.ext import (
 )
 import texts
 import config
-from config import REFILL_OPTIONS
 
 WAITING_FOR_REPORT = 1
 
 async def refill_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Zeigt die Auswahlbuttons an."""
+    refill_options = config.get_refill_options()
     keyboard = []
-    for OPTION in REFILL_OPTIONS:
-        keyboard.append([InlineKeyboardButton(REFILL_OPTIONS[OPTION], callback_data=OPTION)])   
+    for key, label in refill_options.items():
+        keyboard.append([InlineKeyboardButton(label, callback_data=key)])
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.effective_message.reply_text(
         text=texts.REFILL_PROMPT,
@@ -27,8 +27,9 @@ async def refill_button_callback(update: Update, context: ContextTypes.DEFAULT_T
     """Reagiert auf den Klick eines Buttons."""
     query = update.callback_query
     await query.answer()  # Wichtig: Bestätigt Telegram den Klick (entfernt Lade-Icon)
+    refill_options = config.get_refill_options()
     selected_key = query.data
-    selected_label = REFILL_OPTIONS.get(selected_key, "Unbekannt")
+    selected_label = refill_options.get(selected_key, "Unbekannt")
     user = query.from_user
     # 1. Nachricht beim Nutzer anpassen (Buttons verschwinden, Erfolgsmeldung)
     await query.edit_message_text(
