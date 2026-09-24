@@ -8,9 +8,10 @@ async def post_init(app: Application):
     """Setzt die Befehle für das Telegram-Menü links neben dem Eingabefeld."""
     commands = [
         BotCommand("start", "Starts the bot"),
-        BotCommand("help", "Shows help & overview"),
+        BotCommand("faq", "Shows FAQ & info about the Lounge"),
         BotCommand("refill", "Reports needed supplies for the Crew Lounge"),
         BotCommand("report", "Reports an incident in the Crew Lounge"),
+        BotCommand("rules", "Shows the Rules of the Crew Lounge. Please read and follow them!")
     ]
     await app.bot.set_my_commands(commands)
 
