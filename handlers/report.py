@@ -1,4 +1,14 @@
+"""Handlers for the incident reporting and task management workflow of FVCL_Bot.
+
+Contains the multi-step report conversation (ConversationHandler) and the
+crew team resolution workflow ('Mark as done').
+"""
+
+import logging
+import warnings
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import BadRequest
+from telegram.warnings import PTBUserWarning
 from telegram.ext import (
     ContextTypes,
     CommandHandler,
@@ -7,115 +17,207 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
-import texts
+
+# Silence PTBUserWarning for mixed message/callback ConversationHandlers
+warnings.filterwarnings("ignore", category=PTBUserWarning, message=r".*per_message=False.*")
+
 import config
+import texts
+import utils
+
+logger = logging.getLogger(__name__)
 
 WAITING_FOR_REPORT = 1
+MAX_REPORT_LENGTH = 1000
 
-async def refill_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Zeigt die Auswahlbuttons an."""
-    refill_options = config.get_refill_options()
-    keyboard = []
-    for key, label in refill_options.items():
-        keyboard.append([InlineKeyboardButton(label, callback_data=key)])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.effective_message.reply_text(
-        text=texts.REFILL_PROMPT,
-        reply_markup=reply_markup
-    )
-async def refill_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reagiert auf den Klick eines Buttons."""
-    query = update.callback_query
-    await query.answer()  # Wichtig: Bestätigt Telegram den Klick (entfernt Lade-Icon)
-    refill_options = config.get_refill_options()
-    selected_key = query.data
-    selected_label = refill_options.get(selected_key, "Unbekannt")
-    user = query.from_user
-    # 1. Nachricht beim Nutzer anpassen (Buttons verschwinden, Erfolgsmeldung)
-    await query.edit_message_text(
-        text=texts.REFILL_CONFIRMATION.format(
-            name=user.first_name,
-            item=selected_label
-        ),
-        parse_mode="HTML"
-    )
-    # 2. An die Crew Lounge Gruppe senden (falls CREW_CHAT_ID gesetzt ist)
-    if config.CREW_CHAT_ID:
-        crew_msg = texts.CREW_REFILL_NOTIFICATION.format(
-            item=selected_label,
-            user=user.full_name,
-            username=user.username or "Kein Username"
-        )
-        await context.bot.send_message(
-            chat_id=config.CREW_CHAT_ID,
-            text=crew_msg,
-            parse_mode="HTML"
-        )
 
-async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Starts the incident reporting process and prompts the user for details."""
+    if not update.effective_message or not update.effective_user:
+        return ConversationHandler.END
+
+    user = update.effective_user
+
+    # Anti-spam / cooldown check
+    allowed, remaining = utils.check_user_cooldown(user.id, "report")
+    if not allowed:
+        await update.effective_message.reply_text(
+            texts.COOLDOWN_WARNING.format(remaining=remaining)
+        )
+        return ConversationHandler.END
+
     keyboard = [
         [InlineKeyboardButton("Cancel", callback_data="report_cancel")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.effective_message.reply_text(
+
+    msg = await update.effective_message.reply_text(
         text=texts.REPORT_PROMPT,
-        reply_markup=reply_markup
+        reply_markup=reply_markup,
     )
+
+    # Save prompt message ID to remove the Cancel button later
+    context.user_data["report_prompt_msg_id"] = msg.message_id
     return WAITING_FOR_REPORT
 
-async def receive_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    report_text = update.message.text
+
+async def receive_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Processes user report text, validates it, and forwards it to the crew team."""
+    if not update.effective_message or not update.effective_user:
+        return ConversationHandler.END
+
+    # Remove Cancel button from the previous bot prompt message
+    prompt_msg_id = context.user_data.pop("report_prompt_msg_id", None)
+    if prompt_msg_id and update.effective_chat:
+        await utils.safe_remove_reply_markup(
+            context.bot, update.effective_chat.id, prompt_msg_id
+        )
+
+    raw_text = update.effective_message.text or ""
+    report_text = raw_text.strip()
     user = update.effective_user
 
+    # Validation: prevent empty messages
+    if not report_text:
+        await update.effective_message.reply_text(texts.REPORT_EMPTY_ERROR)
+        return WAITING_FOR_REPORT
+
+    # Validation: enforce character limit against payload flooding
+    if len(report_text) > MAX_REPORT_LENGTH:
+        await update.effective_message.reply_text(
+            texts.REPORT_TOO_LONG_ERROR.format(max_length=MAX_REPORT_LENGTH)
+        )
+        return WAITING_FOR_REPORT
+
+    # HTML safety: escape all dynamic variables
+    safe_name = utils.escape_html(user.first_name)
+    safe_full_name = utils.escape_html(user.full_name)
+    safe_username = utils.escape_html(user.username or texts.NO_USERNAME)
+    safe_report = utils.escape_html(report_text)
+
+    # 1. Confirmation sent back to the reporting user
+    report_confirmation = texts.REPORT_CONFIRMATION.format(name=safe_name)
+    if not utils.is_lounge_open():
+        report_confirmation += f"\n\n{texts.CLOSED_NOTIFICATION}"
+
     await update.effective_message.reply_text(
-        text=texts.REPORT_CONFIRMATION.format(
-            name=user.first_name
-        ),
-        parse_mode="HTML"
+        text=report_confirmation,
+        parse_mode="HTML",
     )
+
+    # 2. Notification forwarded to the crew lounge chat
     if config.CREW_CHAT_ID:
         crew_msg = texts.CREW_REPORT_NOTIFICATION.format(
-            user=user.full_name,
-            username=user.username or "Kein Username",
-            report=report_text
+            user=safe_full_name,
+            username=safe_username,
+            report=safe_report,
         )
         await context.bot.send_message(
             chat_id=config.CREW_CHAT_ID,
             text=crew_msg,
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_markup=utils.get_done_keyboard(),
+        )
+
+    return ConversationHandler.END
+
+
+async def non_text_report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handles unsupported media inputs (stickers, photos, voice notes) during reporting."""
+    if update.effective_message:
+        await update.effective_message.reply_text(texts.REPORT_NON_TEXT_ERROR)
+    return WAITING_FOR_REPORT
+
+
+async def cancel_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancels the report process via /cancel command."""
+    prompt_msg_id = context.user_data.pop("report_prompt_msg_id", None)
+    if prompt_msg_id and update.effective_chat:
+        await utils.safe_remove_reply_markup(
+            context.bot, update.effective_chat.id, prompt_msg_id
+        )
+
+    if update.effective_message:
+        await update.effective_message.reply_text(
+            text=texts.REPORT_CANCEL_CONFIRMATION
         )
     return ConversationHandler.END
 
-async def cancel_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.effective_message.reply_text(
-        text=texts.REPORT_CANCEL_CONFIRMATION
-    )
-    return ConversationHandler.END
 
-async def cancel_report_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cancel_report_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancels the report process via the 'Cancel' inline button click."""
     query = update.callback_query
+    if not query:
+        return ConversationHandler.END
+
     await query.answer()
-    # Ersetzt den Prompt & entfernt den Button
-    await query.edit_message_text(
-        text=texts.REPORT_CANCEL_CONFIRMATION
-    )
+    context.user_data.pop("report_prompt_msg_id", None)
+
+    await query.edit_message_text(text=texts.REPORT_CANCEL_CONFIRMATION)
     return ConversationHandler.END
 
-    
+
+async def mark_done_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Marks a task as completed in the crew chat, strikes through text, and removes the button."""
+    query = update.callback_query
+    if not query or not query.message:
+        return
+
+    # Authorization check: only allow clicks originating from the crew chat
+    if config.CREW_CHAT_ID and query.message.chat_id != config.CREW_CHAT_ID:
+        await query.answer(
+            texts.TASK_UNAUTHORIZED_ALERT,
+            show_alert=True,
+        )
+        return
+
+    user = query.from_user
+    time_done = utils.get_current_time_str("%H:%M")
+
+    safe_full_name = utils.escape_html(user.full_name)
+    safe_username = utils.escape_html(user.username or texts.NO_USERNAME)
+
+    done_text = texts.CREW_DONE.format(
+        user=safe_full_name,
+        username=safe_username,
+        time_done=time_done,
+    )
+
+    # Strike through original message and append completion details
+    original_html = query.message.text_html or ""
+    updated_text = f"<s>{original_html}</s>\n\n{done_text}"
+
+    try:
+        await query.edit_message_text(
+            text=updated_text,
+            parse_mode="HTML",
+        )
+        await query.answer(texts.TASK_DONE_CONFIRMATION)
+    except BadRequest as e:
+        # Handle race conditions / double clicks gracefully
+        if "Message is not modified" in str(e):
+            await query.answer(texts.TASK_ALREADY_DONE_ALERT, show_alert=True)
+        else:
+            logger.warning("Error marking task as done: %s", e)
+            await query.answer(texts.TASK_ACTION_FAILED_ALERT, show_alert=True)
+
+
 report_conv_handler = ConversationHandler(
     entry_points=[CommandHandler("report", report_command)],
     states={
         WAITING_FOR_REPORT: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, receive_report)
+            MessageHandler(filters.TEXT & ~filters.COMMAND, receive_report),
+            MessageHandler(~filters.TEXT & ~filters.COMMAND, non_text_report_handler),
         ],
     },
     fallbacks=[
         CommandHandler("cancel", cancel_report),
-        CallbackQueryHandler(cancel_report_callback, pattern="report_cancel")
-    ]
+        CallbackQueryHandler(cancel_report_callback, pattern="^report_cancel$"),
+    ],
+    per_message=False,
 )
+
 handlers = [
-    CommandHandler("refill", refill_command),
-    CallbackQueryHandler(refill_button_callback, pattern="^refill_"),
+    CallbackQueryHandler(mark_done_callback, pattern="^done$"),
     report_conv_handler,
 ]
