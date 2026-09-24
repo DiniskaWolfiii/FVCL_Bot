@@ -7,12 +7,28 @@ START_MESSAGE = (
     "Or more, I will forward your request to the Crew Lounge On Duty and they will help you!\n\n"
     "You can use following commands:\n"
     "- /start: Shows this message\n"
-    "- /help: Shows a help message with all commands\n"
-    "- /refill: When something needs to be refilled"
+    "- /faq: Shows all information about the Crew Lounge\n"
+    "- /refill: When something needs to be refilled\n"
+    "- /report: When something is wrong, report stuff to the crew!\n"
+    "- /rules: Shows the rules of the Crew Lounge"
 )
 
-HELP_MESSAGE = (
-    "Here's the help..."
+FAQ_MESSAGE = (
+    "Hi! 👋\n"
+    "You have a question about the Crew Lounge? No Problem! Check out the most common questions below!\n"
+    "Your question is not in the list? Contact the CL-Team!\n\n"
+)
+
+RULES_MESSAGE = (
+    "These are the rules of the Crew Lounge. Please read them very carefully and follow them at any time.\n"
+    "We are really happy to provide a space for you to relaxe, so help us to keep it that way! Thank you!\n"
+    "~Crew Lounge Team &lt;3\n\n"
+    "1. Do not take food from the Crew Lounge outside of the Crew Lounge.\n"
+    "2. Only Crew is allowed to enter Crew Lounge. Not even a +1.\n"
+    "3. Do not refill on your own. Please use the /refill command to let us know when something needs to be refilled. This helps us to keep track if we also need to refill our storage!\n"
+    "4. When you leave the Crew Lounge, please leave it as you found it. Clean and tidy.\n"
+    "5. Food and drinks are for free. But please be fair and dont take too much!\n"
+    "6. Also, food and drinks are intended as a snack in between. They do not replace a full meal!\n"
 )
 ################################################################################
 # Report to CL-Team
