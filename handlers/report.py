@@ -116,7 +116,7 @@ async def receive_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             chat_id=config.CREW_CHAT_ID,
             text=crew_msg,
             parse_mode="HTML",
-            reply_markup=utils.get_done_keyboard(),
+            reply_markup=utils.get_task_keyboard(),
         )
 
     return ConversationHandler.END
@@ -157,6 +157,62 @@ async def cancel_report_callback(update: Update, context: ContextTypes.DEFAULT_T
     return ConversationHandler.END
 
 
+async def on_my_way_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Marks a task as 'On my way' in the crew chat, records who is on the way, and updates buttons."""
+    query = update.callback_query
+    if not query or not query.message:
+        return
+
+    # Authorization check: only allow clicks originating from the crew chat
+    if config.CREW_CHAT_ID and query.message.chat_id != config.CREW_CHAT_ID:
+        await query.answer(
+            texts.TASK_UNAUTHORIZED_ON_MY_WAY_ALERT,
+            show_alert=True,
+        )
+        return
+
+    original_html = query.message.text_html or ""
+
+    # Check if task was already completed
+    if "<s>" in original_html:
+        await query.answer(texts.TASK_ALREADY_DONE_ALERT, show_alert=True)
+        return
+
+    # Check if someone is already on the way
+    if "🏃 <b>On the way:" in original_html:
+        await query.answer(texts.TASK_ALREADY_ON_MY_WAY_ALERT, show_alert=True)
+        return
+
+    user = query.from_user
+    time_str = utils.get_current_time_str("%H:%M")
+
+    safe_full_name = utils.escape_html(user.full_name)
+    safe_username = utils.escape_html(user.username or texts.NO_USERNAME)
+
+    on_way_text = texts.CREW_ON_MY_WAY.format(
+        user=safe_full_name,
+        username=safe_username,
+        time=time_str,
+    )
+
+    updated_text = f"{original_html}\n\n{on_way_text}"
+
+    try:
+        await query.edit_message_text(
+            text=updated_text,
+            parse_mode="HTML",
+            reply_markup=utils.get_done_keyboard(),
+        )
+        await query.answer(texts.TASK_ON_MY_WAY_CONFIRMATION)
+    except BadRequest as e:
+        # Handle race conditions / double clicks gracefully
+        if "Message is not modified" in str(e):
+            await query.answer(texts.TASK_ALREADY_ON_MY_WAY_ALERT, show_alert=True)
+        else:
+            logger.warning("Error marking task as on the way: %s", e)
+            await query.answer(texts.TASK_ACTION_FAILED_ALERT, show_alert=True)
+
+
 async def mark_done_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Marks a task as completed in the crew chat, strikes through text, and removes the button."""
     query = update.callback_query
@@ -169,6 +225,13 @@ async def mark_done_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             texts.TASK_UNAUTHORIZED_ALERT,
             show_alert=True,
         )
+        return
+
+    original_html = query.message.text_html or ""
+
+    # Prevent double clicks if already completed
+    if "<s>" in original_html:
+        await query.answer(texts.TASK_ALREADY_DONE_ALERT, show_alert=True)
         return
 
     user = query.from_user
@@ -184,7 +247,6 @@ async def mark_done_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
     # Strike through original message and append completion details
-    original_html = query.message.text_html or ""
     updated_text = f"<s>{original_html}</s>\n\n{done_text}"
 
     try:
@@ -218,6 +280,7 @@ report_conv_handler = ConversationHandler(
 )
 
 handlers = [
+    CallbackQueryHandler(on_my_way_callback, pattern="^on_my_way$"),
     CallbackQueryHandler(mark_done_callback, pattern="^done$"),
     report_conv_handler,
 ]

@@ -91,12 +91,17 @@ CLOSED_NOTIFICATION = "<b>⚠️ The Crew Lounge team is currently off duty, but
 COOLDOWN_WARNING = "⚠️ Please wait another {remaining} second(s) before sending another request!"
 
 BUTTON_MARK_DONE = "✅ Mark as done"
+BUTTON_ON_MY_WAY = "🏃 On my way"
 CREW_DONE = "<b>Done by: {user} (@{username}) at {time_done}</b>"
+CREW_ON_MY_WAY = "🏃 <b>On the way: {user} (@{username}) at {time}</b>"
 
 TASK_UNAUTHORIZED_ALERT = "⛔ Only the Crew Team can mark this task as done!"
+TASK_UNAUTHORIZED_ON_MY_WAY_ALERT = "⛔ Only the Crew Team can accept this task!"
 TASK_ALREADY_DONE_ALERT = "This task has already been marked as done."
+TASK_ALREADY_ON_MY_WAY_ALERT = "Someone is already on the way or this task is already done."
 TASK_ACTION_FAILED_ALERT = "Action could not be executed."
 TASK_DONE_CONFIRMATION = "Marked as done! ✅"
+TASK_ON_MY_WAY_CONFIRMATION = "You are on the way! 🏃"
 
 NO_USERNAME = "No Username"
 UNKNOWN_USER = "Unknown"

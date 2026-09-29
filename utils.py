@@ -68,11 +68,27 @@ def is_lounge_open() -> bool:
         return False
 
 
-def get_done_keyboard() -> InlineKeyboardMarkup:
-    """Creates the inline keyboard containing the 'Mark as done' button."""
+def get_task_keyboard(show_on_my_way: bool = True) -> InlineKeyboardMarkup:
+    """Creates the inline keyboard for crew tasks.
+
+    If show_on_my_way is True, displays both 'On my way' and 'Mark as done' buttons.
+    Otherwise, displays only the 'Mark as done' button.
+    """
+    if show_on_my_way:
+        return InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(texts.BUTTON_ON_MY_WAY, callback_data="on_my_way"),
+                InlineKeyboardButton(texts.BUTTON_MARK_DONE, callback_data="done"),
+            ]
+        ])
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(texts.BUTTON_MARK_DONE, callback_data="done")]
     ])
+
+
+def get_done_keyboard() -> InlineKeyboardMarkup:
+    """Creates the inline keyboard containing only the 'Mark as done' button."""
+    return get_task_keyboard(show_on_my_way=False)
 
 
 def check_user_cooldown(
