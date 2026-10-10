@@ -28,7 +28,7 @@ RULES_MESSAGE = (
     "1. Do not take food from the Crew Lounge outside of the Crew Lounge.\n"
     "2. Only Crew is allowed to enter Crew Lounge. Not even a +1.\n"
     "3. Do not refill on your own. Please use the /refill command to let us know when something needs to be refilled. This helps us to keep track if we also need to refill our storage!\n"
-    "4. When you leave the Crew Lounge, please leave it as you found it. Clean and tidy.\n"
+    "4. When you leave the Crew Lounge, please leave it as you would like to find it. Clean and tidy.\n"
     "5. Food and drinks are for free. But please be fair and dont take too much!\n"
     "6. Also, food and drinks are intended as a snack in between. They do not replace a full meal!\n"
 )
