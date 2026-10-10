@@ -26,7 +26,7 @@ async def refill_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     keyboard = [
-        [InlineKeyboardButton(label, callback_data=key)]
+        [InlineKeyboardButton(label, callback_data=f"refill:{key}")]
         for key, label in refill_options.items()
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -44,7 +44,13 @@ async def refill_button_callback(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     user = query.from_user
-    selected_key = query.data or ""
+    raw_data = query.data or ""
+    if raw_data.startswith("refill:"):
+        selected_key = raw_data.split("refill:", 1)[1]
+    elif raw_data.startswith("refill_"):
+        selected_key = raw_data.split("refill_", 1)[1]
+    else:
+        selected_key = raw_data
 
     # Anti-spam / cooldown check
     allowed, remaining = utils.check_user_cooldown(user.id, "refill")
@@ -59,8 +65,13 @@ async def refill_button_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     refill_options = config.get_refill_options()
     if selected_key not in refill_options:
-        await query.answer(texts.ITEM_NOT_AVAILABLE, show_alert=True)
-        return
+        if raw_data in refill_options:
+            selected_key = raw_data
+        elif f"refill_{selected_key}" in refill_options:
+            selected_key = f"refill_{selected_key}"
+        else:
+            await query.answer(texts.ITEM_NOT_AVAILABLE, show_alert=True)
+            return
 
     selected_label = refill_options[selected_key]
     safe_item = utils.escape_html(selected_label)
@@ -88,15 +99,22 @@ async def refill_button_callback(update: Update, context: ContextTypes.DEFAULT_T
             user=safe_full_name,
             username=safe_username,
         )
-        await context.bot.send_message(
-            chat_id=config.CREW_CHAT_ID,
-            text=crew_msg,
-            parse_mode="HTML",
-            reply_markup=utils.get_task_keyboard(),
-        )
+        try:
+            await context.bot.send_message(
+                chat_id=config.CREW_CHAT_ID,
+                text=crew_msg,
+                parse_mode="HTML",
+                reply_markup=utils.get_task_keyboard(),
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send refill notification to CREW_CHAT_ID %s: %s",
+                config.CREW_CHAT_ID,
+                e,
+            )
 
 
 handlers = [
     CommandHandler("refill", refill_command),
-    CallbackQueryHandler(refill_button_callback, pattern="^refill_"),
+    CallbackQueryHandler(refill_button_callback, pattern=r"^refill[:_]"),
 ]

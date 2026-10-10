@@ -112,12 +112,19 @@ async def receive_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             username=safe_username,
             report=safe_report,
         )
-        await context.bot.send_message(
-            chat_id=config.CREW_CHAT_ID,
-            text=crew_msg,
-            parse_mode="HTML",
-            reply_markup=utils.get_task_keyboard(),
-        )
+        try:
+            await context.bot.send_message(
+                chat_id=config.CREW_CHAT_ID,
+                text=crew_msg,
+                parse_mode="HTML",
+                reply_markup=utils.get_task_keyboard(),
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send report notification to CREW_CHAT_ID %s: %s",
+                config.CREW_CHAT_ID,
+                e,
+            )
 
     return ConversationHandler.END
 
