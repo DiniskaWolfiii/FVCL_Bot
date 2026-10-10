@@ -1,6 +1,52 @@
 """Central text templates and user-facing messages for the FVCL_Bot."""
 
 ################################################################################
+# General stuff
+################################################################################
+FAQ_DATA = [
+    {
+        "question": "🛋 What is the Crew Lounge?",
+        "answer": "The Crew Lounge is a place to recover and rest. You will be able to chill, get foods and drinks and calm down from the loud noises at the Con!"
+    },
+    {
+        "question": "📍 Where can I find the Crew Lounge?",
+        "answer": "The Crew Lounge is located in the <b>room 0-3 in the ground floor</b>, right behind ConOps!"
+    },
+    {
+        "question": "⏰ When is the Crew Lounge open?",
+        "answer": "The Crew Lounge is open from 10:00 AM to 6:00 PM during the convention!"
+    },
+    {
+        "question": "🧑‍✈️ Who can use the Crew Lounge?",
+        "answer": "The Crew Lounge is open to all Crew members of the Furvester Convention 2026!"
+    },
+    {
+        "question": "📜 What are the rules?",
+        "answer": "The rules are simple. To show them, use /rules"
+    }
+]
+
+REFILL_ITEMS = {
+    "Dildos": "Dildos",
+    "Condoms": "XXXXXXXXXXL Condoms",
+    "Lube": "32.000oz Lube",
+    "Pizza": "Pizza",
+    "Panini": "Panini Station",
+    "Drinks": "Bar/Drinks",
+    "Nothing": "Nothing, everything is fine"
+}
+
+OPENING_HOURS = {
+    "Monday": {"open": "8:00", "close": "22:00"},
+    "Tuesday": { "open": "8:00", "close": "22:00"},
+    "Wednesday": { "open": "8:00", "close": "22:00"},
+    "Thursday": { "open": "8:00", "close": "22:00"},
+    "Friday": { "open": "8:00", "close": "22:00"},
+    "Saturday": { "open": "8:00", "close": "22:00"},
+    "Sunday": { "open": "8:00", "close": "22:00"}
+}
+
+################################################################################
 # General Messages
 ################################################################################
 START_MESSAGE = (

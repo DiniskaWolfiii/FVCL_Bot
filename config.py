@@ -7,6 +7,7 @@ and provides helper functions to read static JSON assets.
 import os
 import json
 import logging
+import texts
 from pathlib import Path
 from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -47,43 +48,18 @@ OPENING_FILE: Path = _ASSETS_DIR / "opening.json"
 
 
 def get_refill_options() -> Dict[str, str]:
-    """Loads available refill items from items.json."""
-    if not ITEMS_FILE.exists():
-        logging.warning("File %s does not exist.", ITEMS_FILE)
-        return {}
-    try:
-        with open(ITEMS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logging.error("Error loading %s: %s", ITEMS_FILE, e)
-        return {}
+    """Returns available refill items."""
+    return texts.REFILL_ITEMS
 
 
 def get_faq_data() -> List[Dict[str, str]]:
-    """Loads FAQ questions and answers from faq.json."""
-    if not FAQ_FILE.exists():
-        logging.warning("File %s does not exist.", FAQ_FILE)
-        return []
-    try:
-        with open(FAQ_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data.get("questions", [])
-    except (json.JSONDecodeError, OSError) as e:
-        logging.error("Error loading %s: %s", FAQ_FILE, e)
-        return []
+    """Returns FAQ questions and answers."""
+    return texts.FAQ_DATA
 
 
 def get_opening_data() -> Dict[str, Dict[str, str]]:
-    """Loads lounge operating hours from opening.json."""
-    if not OPENING_FILE.exists():
-        logging.warning("File %s does not exist.", OPENING_FILE)
-        return {}
-    try:
-        with open(OPENING_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logging.error("Error loading %s: %s", OPENING_FILE, e)
-        return {}
+    """Returns lounge operating hours."""
+    return texts.OPENING_HOURS
 
 
 def setup_logging() -> None:
