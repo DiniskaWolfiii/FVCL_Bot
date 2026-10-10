@@ -10,8 +10,22 @@ import shutil
 import logging
 from pathlib import Path
 
-# Initialize custom data directory (e.g. for Docker volume /data)
-DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
+# Initialize custom data directory (e.g. for Docker volume /data, or ./data locally)
+data_env = os.getenv("DATA_DIR")
+if data_env:
+    DATA_DIR = Path(data_env)
+elif Path("/data").is_dir():
+    DATA_DIR = Path("/data")
+else:
+    DATA_DIR = Path("data")
+
+# Create local data directory if it doesn't exist yet
+if not DATA_DIR.exists():
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+
 if DATA_DIR.is_dir():
     custom_texts = DATA_DIR / "texts.py"
     default_texts = Path(__file__).parent / "texts.py"

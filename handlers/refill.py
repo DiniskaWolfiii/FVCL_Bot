@@ -114,7 +114,16 @@ async def refill_button_callback(update: Update, context: ContextTypes.DEFAULT_T
             )
 
 
+def is_refill_callback(data: str) -> bool:
+    """Matches refill callbacks: both prefixed (refill:*) and raw item keys from older messages."""
+    if not data:
+        return False
+    if data.startswith(("refill:", "refill_")):
+        return True
+    return data in config.get_refill_options()
+
+
 handlers = [
     CommandHandler("refill", refill_command),
-    CallbackQueryHandler(refill_button_callback, pattern=r"^refill[:_]"),
+    CallbackQueryHandler(refill_button_callback, pattern=is_refill_callback),
 ]

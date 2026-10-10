@@ -2,5 +2,5 @@
 .venv
 .git
 .vscode
-tests/
+data/
 __pycache__
