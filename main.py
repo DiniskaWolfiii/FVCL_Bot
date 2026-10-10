@@ -5,7 +5,30 @@ handlers, policies, and the global error handler.
 """
 
 import sys
+import os
+import shutil
 import logging
+from pathlib import Path
+
+# Initialize custom data directory (e.g. for Docker volume /data)
+DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
+if DATA_DIR.is_dir():
+    custom_texts = DATA_DIR / "texts.py"
+    default_texts = Path(__file__).parent / "texts.py"
+    if not custom_texts.exists() and default_texts.exists():
+        try:
+            shutil.copyfile(default_texts, custom_texts)
+            try:
+                os.chmod(custom_texts, 0o666)  # Allows editing on the host without sudo
+            except OSError:
+                pass
+            print(f"Initialized default texts.py in {DATA_DIR}")
+        except OSError as e:
+            print(f"Warning: Could not copy default texts.py to {DATA_DIR}: {e}")
+
+    if custom_texts.exists():
+        sys.path.insert(0, str(DATA_DIR.resolve()))
+
 from telegram import BotCommand
 from telegram.ext import (
     ApplicationBuilder,
@@ -45,6 +68,9 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 def main() -> None:
     """Starts the bot and initializes all services."""
     config.setup_logging()
+
+    if (DATA_DIR / "texts.py").exists():
+        logger.info("Custom texts loaded from: %s", DATA_DIR / "texts.py")
 
     if not config.BOT_TOKEN:
         logger.critical("⚠️ Please set BOT_TOKEN in the .env file!")
