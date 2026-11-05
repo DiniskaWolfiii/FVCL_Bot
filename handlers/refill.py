@@ -104,7 +104,11 @@ async def refill_button_callback(update: Update, context: ContextTypes.DEFAULT_T
                 chat_id=config.CREW_CHAT_ID,
                 text=crew_msg,
                 parse_mode="HTML",
-                reply_markup=utils.get_task_keyboard(),
+                reply_markup=utils.get_task_keyboard(
+                    task_type="refill",
+                    user_id=user.id,
+                    item_key=selected_key,
+                ),
             )
         except Exception as e:
             logger.error(

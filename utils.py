@@ -68,27 +68,80 @@ def is_lounge_open() -> bool:
         return False
 
 
-def get_task_keyboard(show_on_my_way: bool = True) -> InlineKeyboardMarkup:
+def _build_task_callback(
+    action: str,
+    task_type: Optional[str] = None,
+    user_id: Optional[int] = None,
+    item_key: Optional[str] = None,
+) -> str:
+    """Builds a Telegram callback_data string (max 64 bytes) for crew task buttons."""
+    if not task_type or user_id is None:
+        return action
+    base = f"{action}:{task_type}:{user_id}"
+    if item_key:
+        with_item = f"{base}:{item_key}"
+        if len(with_item.encode("utf-8")) <= 64:
+            return with_item
+    return base
+
+
+def parse_task_callback_data(
+    data: Optional[str],
+) -> Tuple[str, Optional[str], Optional[int], Optional[str]]:
+    """Parses callback_data from crew task buttons into (action, task_type, user_id, item_key)."""
+    if not data:
+        return "", None, None, None
+    parts = data.split(":", 3)
+    action = parts[0]
+    task_type = parts[1] if len(parts) > 1 and parts[1] else None
+    user_id: Optional[int] = None
+    if len(parts) > 2 and parts[2]:
+        try:
+            user_id = int(parts[2])
+        except ValueError:
+            user_id = None
+    item_key = parts[3] if len(parts) > 3 and parts[3] else None
+    return action, task_type, user_id, item_key
+
+
+def get_task_keyboard(
+    show_on_my_way: bool = True,
+    task_type: Optional[str] = None,
+    user_id: Optional[int] = None,
+    item_key: Optional[str] = None,
+) -> InlineKeyboardMarkup:
     """Creates the inline keyboard for crew tasks.
 
     If show_on_my_way is True, displays both 'On my way' and 'Mark as done' buttons.
     Otherwise, displays only the 'Mark as done' button.
     """
+    on_my_way_cb = _build_task_callback("on_my_way", task_type, user_id, item_key)
+    done_cb = _build_task_callback("done", task_type, user_id, item_key)
+
     if show_on_my_way:
         return InlineKeyboardMarkup([
             [
-                InlineKeyboardButton(texts.BUTTON_ON_MY_WAY, callback_data="on_my_way"),
-                InlineKeyboardButton(texts.BUTTON_MARK_DONE, callback_data="done"),
+                InlineKeyboardButton(texts.BUTTON_ON_MY_WAY, callback_data=on_my_way_cb),
+                InlineKeyboardButton(texts.BUTTON_MARK_DONE, callback_data=done_cb),
             ]
         ])
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(texts.BUTTON_MARK_DONE, callback_data="done")]
+        [InlineKeyboardButton(texts.BUTTON_MARK_DONE, callback_data=done_cb)]
     ])
 
 
-def get_done_keyboard() -> InlineKeyboardMarkup:
+def get_done_keyboard(
+    task_type: Optional[str] = None,
+    user_id: Optional[int] = None,
+    item_key: Optional[str] = None,
+) -> InlineKeyboardMarkup:
     """Creates the inline keyboard containing only the 'Mark as done' button."""
-    return get_task_keyboard(show_on_my_way=False)
+    return get_task_keyboard(
+        show_on_my_way=False,
+        task_type=task_type,
+        user_id=user_id,
+        item_key=item_key,
+    )
 
 
 def check_user_cooldown(

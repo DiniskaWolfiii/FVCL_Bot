@@ -153,5 +153,19 @@ TASK_ACTION_FAILED_ALERT = "Action could not be executed."
 TASK_DONE_CONFIRMATION = "Marked as done! ✅"
 TASK_ON_MY_WAY_CONFIRMATION = "You are on the way! 🏃"
 
+# User status notifications when Crew interacts with task buttons
+USER_REFILL_ON_MY_WAY = (
+    "🏃 A member of the Crew Lounge team is on the way to refill <b>{item}</b>!"
+)
+USER_REFILL_DONE = (
+    "✅ <b>{item}</b> has been refilled by the Crew Lounge team!"
+)
+USER_REPORT_ON_MY_WAY = (
+    "🏃 A member of the Crew Lounge team is on the way to take care of your report!"
+)
+USER_REPORT_DONE = (
+    "✅ Your report has been resolved by the Crew Lounge team!"
+)
+
 NO_USERNAME = "No Username"
 UNKNOWN_USER = "Unknown"

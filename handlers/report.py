@@ -117,7 +117,10 @@ async def receive_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 chat_id=config.CREW_CHAT_ID,
                 text=crew_msg,
                 parse_mode="HTML",
-                reply_markup=utils.get_task_keyboard(),
+                reply_markup=utils.get_task_keyboard(
+                    task_type="report",
+                    user_id=user.id,
+                ),
             )
         except Exception as e:
             logger.error(
@@ -164,6 +167,96 @@ async def cancel_report_callback(update: Update, context: ContextTypes.DEFAULT_T
     return ConversationHandler.END
 
 
+def _resolve_refill_item_label(
+    item_key: str | None, original_html: str
+) -> str:
+    """Resolves the HTML-escaped display label of a refill item from item_key or message HTML."""
+    refill_options = config.get_refill_options()
+    if item_key and item_key in refill_options:
+        return utils.escape_html(refill_options[item_key])
+
+    # Fallback: try extracting from '<b>What:</b> <item>' in the crew message HTML
+    marker = "<b>What:</b> "
+    if marker in original_html:
+        after = original_html.split(marker, 1)[1]
+        extracted = after.split("\n", 1)[0].strip()
+        if extracted:
+            return extracted
+
+    if item_key:
+        return utils.escape_html(item_key)
+    return "the requested item"
+
+
+async def _notify_requesting_user(
+    context: ContextTypes.DEFAULT_TYPE,
+    action: str,
+    task_type: str | None,
+    target_user_id: int | None,
+    item_key: str | None,
+    crew_full_name: str,
+    crew_username: str,
+    time_str: str,
+    original_html: str,
+) -> None:
+    """Sends a status update to the user who created the report or refill request."""
+    if not target_user_id:
+        return
+
+    is_refill = task_type == "refill" or (
+        task_type is None and "REFILL REQUEST" in original_html
+    )
+    safe_item = _resolve_refill_item_label(item_key, original_html) if is_refill else ""
+
+    if action == "on_my_way":
+        if is_refill:
+            template = getattr(
+                texts,
+                "USER_REFILL_ON_MY_WAY",
+                "🏃 A member of the Crew Lounge team is on the way to refill <b>{item}</b>!",
+            )
+        else:
+            template = getattr(
+                texts,
+                "USER_REPORT_ON_MY_WAY",
+                "🏃 A member of the Crew Lounge team is on the way to take care of your report!",
+            )
+    else:
+        if is_refill:
+            template = getattr(
+                texts,
+                "USER_REFILL_DONE",
+                "✅ <b>{item}</b> has been refilled by the Crew Lounge team!",
+            )
+        else:
+            template = getattr(
+                texts,
+                "USER_REPORT_DONE",
+                "✅ Your report has been resolved by the Crew Lounge team!",
+            )
+
+    user_msg = template.format(
+        item=safe_item,
+        user=crew_full_name,
+        username=crew_username,
+        time=time_str,
+    )
+
+    try:
+        await context.bot.send_message(
+            chat_id=target_user_id,
+            text=user_msg,
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.warning(
+            "Failed to send '%s' status notification to user %s: %s",
+            action,
+            target_user_id,
+            e,
+        )
+
+
 async def on_my_way_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Marks a task as 'On my way' in the crew chat, records who is on the way, and updates buttons."""
     query = update.callback_query
@@ -190,6 +283,8 @@ async def on_my_way_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer(texts.TASK_ALREADY_ON_MY_WAY_ALERT, show_alert=True)
         return
 
+    _, task_type, target_user_id, item_key = utils.parse_task_callback_data(query.data)
+
     user = query.from_user
     time_str = utils.get_current_time_str("%H:%M")
 
@@ -208,7 +303,11 @@ async def on_my_way_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.edit_message_text(
             text=updated_text,
             parse_mode="HTML",
-            reply_markup=utils.get_done_keyboard(),
+            reply_markup=utils.get_done_keyboard(
+                task_type=task_type,
+                user_id=target_user_id,
+                item_key=item_key,
+            ),
         )
         await query.answer(texts.TASK_ON_MY_WAY_CONFIRMATION)
     except BadRequest as e:
@@ -218,6 +317,19 @@ async def on_my_way_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             logger.warning("Error marking task as on the way: %s", e)
             await query.answer(texts.TASK_ACTION_FAILED_ALERT, show_alert=True)
+        return
+
+    await _notify_requesting_user(
+        context=context,
+        action="on_my_way",
+        task_type=task_type,
+        target_user_id=target_user_id,
+        item_key=item_key,
+        crew_full_name=safe_full_name,
+        crew_username=safe_username,
+        time_str=time_str,
+        original_html=original_html,
+    )
 
 
 async def mark_done_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -240,6 +352,8 @@ async def mark_done_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if "<s>" in original_html:
         await query.answer(texts.TASK_ALREADY_DONE_ALERT, show_alert=True)
         return
+
+    _, task_type, target_user_id, item_key = utils.parse_task_callback_data(query.data)
 
     user = query.from_user
     time_done = utils.get_current_time_str("%H:%M")
@@ -269,6 +383,19 @@ async def mark_done_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             logger.warning("Error marking task as done: %s", e)
             await query.answer(texts.TASK_ACTION_FAILED_ALERT, show_alert=True)
+        return
+
+    await _notify_requesting_user(
+        context=context,
+        action="done",
+        task_type=task_type,
+        target_user_id=target_user_id,
+        item_key=item_key,
+        crew_full_name=safe_full_name,
+        crew_username=safe_username,
+        time_str=time_done,
+        original_html=original_html,
+    )
 
 
 report_conv_handler = ConversationHandler(
@@ -287,7 +414,7 @@ report_conv_handler = ConversationHandler(
 )
 
 handlers = [
-    CallbackQueryHandler(on_my_way_callback, pattern="^on_my_way$"),
-    CallbackQueryHandler(mark_done_callback, pattern="^done$"),
+    CallbackQueryHandler(on_my_way_callback, pattern=r"^on_my_way(:|$)"),
+    CallbackQueryHandler(mark_done_callback, pattern=r"^done(:|$)"),
     report_conv_handler,
 ]
