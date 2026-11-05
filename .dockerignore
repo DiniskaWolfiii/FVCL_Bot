@@ -1,0 +1,9 @@
+.env
+.env.example
+.venv
+.git
+.github
+.vscode
+data/
+README.md
+__pycache__
